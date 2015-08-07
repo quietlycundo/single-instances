@@ -1,0 +1,469 @@
+
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  
+  "Description" : "AWS CloudFormation Template Single_Instance_With_EBS_Volume: This template installs a single EC2 instance with an EBS volume for storage.",
+  
+  "Parameters" : {
+ 
+    "LaunchedBy" : {
+      "Description" : "Engineer who launched this stack.",
+      "Type" : "String",
+      "AllowedValues" : [ "Patrick Moylan", "Steve LeCompte", "Chris O'Malley", "Frank Chen", "Jonathan Huang", "Facundo Nishiwaki", "Sean Hsu" ],
+      "ConstraintDescription" : "must be a valid HTC Operations Team engineer.",
+      "Default" : "Steve LeCompte"
+    },
+
+    "Account" : {
+      "Description" : "Account name.",
+      "Type" : "String",
+      "AllowedValues" : [ "DEV", "CMS", "PROD" ],
+      "Default" : "CMS"
+    },
+    
+    "Service" : {
+        "Description" : "HTCCS Service name.",
+        "Type" : "String",
+        "Default" : "ec2tools"
+    }, 
+    
+    "Component" : {
+        "Description" : "Component name for the service.",
+        "Type" : "String",
+        "Default" : "ec2tools"
+    }, 
+    "Environment" : {
+        "Description" : "Environment name, e.g. prod, stage, etc.",
+        "Type" : "String",
+        "AllowedValues" : [ "prod", "stage", "dog", "perf", "ft", "ci", "proto", "demo", "lab", "dv", "sb1", "sb2", "sb3" ],
+        "Default" : "stage"
+    },
+
+    "VolumeSize" : {
+      "Description" : "EC2 instance type",
+      "Type" : "Number",
+      "Default" : "5",
+      "MinValue" : "5",
+      "MaxValue" : "1024",
+      "ConstraintDescription" : "must be between 5 and 1024 Gb."
+    },
+  
+    "InstanceType" : {
+      "Description" : "EC2 instance type",
+      "Type" : "String",
+      "Default" : "m1.small",
+      "AllowedValues" : [ "t1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m2.xlarge","m2.2xlarge","m2.4xlarge","m3.xlarge","m3.2xlarge","c1.medium","c1.xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+    
+    "ServerPort" : {
+      "Description" : "EC2 instance type",
+      "Type" : "String",
+      "Default" : "80",
+      "AllowedPattern" : "(\\d{1,3})",
+      "ConstraintDescription" : "must be a valid port value."
+    },
+
+    "ServiceIngressLocation" : {
+      "Description" : "The IP address range that can be used to connect to the service running on the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "10.0.0.0/8",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+   }, 
+   
+    "ChefRole" : {
+      "Description" : "Name of Chef Role",
+      "Type" : "String",
+      "MinLength" : "3",
+      "MaxLength" : "50",
+      "AllowedPattern" : "[-_.a-zA-Z0-9]*",
+      "Default" : "EC2TOOLS-STAGE-LOG-ROLE"
+    },
+    
+    "SubnetType" : {
+      "Description" : "Private or Public Subnet to place EC2 instances",
+      "Type" : "String",
+      "MinLength" : "3",
+      "MaxLength" : "50",
+      "AllowedValues" : [ "Private", "Public" ],
+      "Default" : "Private",
+      "ConstraintDescription" : "Must be 'Private' or 'Public'"
+    }
+ 
+  },
+  
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t1.micro"    : { "Arch" : "64" },
+      "m1.small"    : { "Arch" : "64" },
+      "m1.medium"   : { "Arch" : "64" },
+      "m1.large"    : { "Arch" : "64" },
+      "m1.xlarge"   : { "Arch" : "64" },
+      "m2.xlarge"   : { "Arch" : "64" },
+      "m2.2xlarge"  : { "Arch" : "64" },
+      "m2.4xlarge"  : { "Arch" : "64" },
+      "m3.xlarge"   : { "Arch" : "64" },
+      "m3.2xlarge"  : { "Arch" : "64" },
+      "c1.medium"   : { "Arch" : "64" },
+      "c1.xlarge"   : { "Arch" : "64" },
+      "cc1.4xlarge" : { "Arch" : "64HVM" },
+      "cc2.8xlarge" : { "Arch" : "64HVM" },
+      "cg1.4xlarge" : { "Arch" : "64HVM" }
+    },
+
+    "AWSRegionArch2AMI" : {
+      "us-east-1"      : { "32" : "ami-d7a18dbe", "64" : "ami-bba18dd2", "64HVM" : "ami-0da96764" },
+      "us-west-2"      : { "32" : "ami-def297ee", "64" : "ami-ccf297fc", "64HVM" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "32" : "ami-923909d7", "64" : "ami-a43909e1", "64HVM" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "32" : "ami-6a56b81d", "64" : "ami-5256b825", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "32" : "ami-b6baeee4", "64" : "ami-b4baeee6", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "32" : "ami-65a8375f", "64" : "ami-5ba83761", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "32" : "ami-0b13700a", "64" : "ami-0d13700c", "64HVM" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "32" : "ami-bf9130a2", "64" : "ami-c99130d4", "64HVM" : "NOT_YET_SUPPORTED" }
+    },
+
+    "AWSRegion2PublicSubnetId" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "NOT_YET_SUPPORTED",   "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED"   },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED"   },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED"   },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "AWSRegion2PublicZone" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "a",                 "CMS" : "NOT_YET_SUPPORTED", "PROD" : "a"                 },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "a",                 "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "a",                 "PROD" : "a"                 },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "a"                 },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "AWSRegion2PrivateSubnetId" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "NOT_YET_SUPPORTED",   "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED"   },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED"   },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED"   },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    
+     "AWSRegion2PrivateZone" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "a",                 "CMS" : "NOT_YET_SUPPORTED", "PROD" : "a" },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "a",                 "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "a",                 "PROD" : "a" },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "a" },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "SshKey2Region" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED",     "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",    "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED",     "CMS" : "NOT_YET_SUPPORTED",      "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED",   "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    "VPCIds" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "vpc-e4c8008d",      "CMS" : "NOT_YET_SUPPORTED", "PROD" : "vpc-d237c8bb" },
+      "us-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "vpc-40458829",      "PROD" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "vpc-5de68034",      "PROD" : "vpc-133b457a" },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "vpc-bb4b34d2",      "PROD" : "vpc-66b4110f" },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED", "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" }
+    },
+    "VPCSecurityGroup" : {
+      "us-east-1"      : { "DEV" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "DEV" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "CMS" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "DEV" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "DEV" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "CMS" : "NOT_YET_SUPPORTED", "PROD" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "DEV" : "NOT_YET_SUPPORTED" }
+          
+    },
+    
+    "Values2Environment" : {
+      "stage" : {
+        "yumrepo"           : ,
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefrole"          : "SYSLOG-STAGE-LOG-ROLE",
+        "chefserverurl"     : "https://chef.dev.sea1.csh.tc"
+      },
+      "prd" : {    
+        "yumrepo"           : "",
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefrole"          : "SYSLOG-PROD-LOG-ROLE",
+        "chefserverurl"     : "https://chef2.sea1.csh.tc"
+      }
+    }
+  },
+
+  "Conditions" : {
+    "PublicSubnet" : { "Fn::Equals" : [ { "Ref" : "SubnetType" }, "Public" ] }
+  },
+  
+  "Resources" : {     
+      
+   "EC2Instance": {  
+      "Type": "AWS::EC2::Instance",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "configSets" : {
+            "install" : [ "base", "yumrepo", "chefrole-prepare", "perform" ]
+          },
+          "base" : {
+            "packages" : {
+              "yum" : {
+                "gcc"              : [],
+                "make"             : [],
+                "ruby-devel"       : [],
+                "ruby-rdoc"        : [],
+                "rubygems"         : [],
+                "libxml2-devel"    : [],
+                "libxslt-devel"    : [],
+                "git"              : [],
+                "aws-apitools-ec2" : []
+              },
+
+              "rubygems" : {
+              }
+            }
+          },
+          
+          "chefrole-prepare" : {
+            "packages" : {
+              "yum" : {
+                "rubygems19"     : [],
+                "chef"           : []
+              }
+            },
+            "files" : {
+              "/etc/chef/validation.pem" : {
+                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "chefvalidationkey" ]
+                },
+                "mode"   : "00600",
+                "owner"  : "root",
+                "group"  : "root"
+              },
+              "/etc/chef/chef.json" : {
+                "content" : {
+                  "sudo" : {
+                    "passwordless": true,
+                    "groups": [ "ops", "wheel" ]
+                  },
+                  "run_list" : [ { "Fn::Join" : [ "",[ "role[", 
+                                  { "Fn::FindInMap" : [ "Values2Environment", 
+                                    { "Ref" : "Environment" }, "chefrole" ] 
+                                  }, "]" ] ] 
+                                } 
+                  ]
+                }
+              },
+              "/etc/chef/client.rb" : {
+                "content" : { "Fn::Join" : ["", [
+                  "log_level          :info\n",
+                  "log_location       STDOUT\n",
+                  "chef_server_url  \"", { "Fn::Join" : [ "", 
+                    [ { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "chefserverurl" ] }, "\"\n"
+                      ] ] },
+                 "validation_client_name      \"chef-validator\"\n",
+                 "file_cache_path         \"/var/cache/chef\"\n",
+                 "file_backup_path        \"/var/lib/chef\"\n"
+
+                  ] ]
+                },
+                "mode"   : "00600",
+                "owner"  : "root",
+                "group"  : "root"
+              }
+            }
+          }, 
+                    
+          "yumrepo" : {
+            "files" : {
+              "/etc/yum.repos.d/htc_rhel5-x86_64.repo" : {
+                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "yumrepo" ]
+                },
+                "mode"   : "00644",
+                "owner"  : "root",
+                "group"  : "root"
+              }
+            }
+          }, 
+
+          "perform" : {
+            "commands" : {
+              "01-run-chef-client" : {
+                "command" : "chef-client -j /etc/chef/chef.json"
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "SubnetId" : { 
+          "Fn::If" : [
+            "PublicSubnet", 
+              { "Fn::FindInMap" : [ "AWSRegion2PublicSubnetId",  
+                                  { "Ref" : "AWS::Region" },
+                                  { "Ref" : "Account" }
+                               ]
+              },
+              { "Fn::FindInMap" : [ "AWSRegion2PrivateSubnetId",  
+                                  { "Ref" : "AWS::Region" },
+                                  { "Ref" : "Account" }
+                               ]
+              }
+          ]
+        },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "SecurityGroupIds" : [ {"Ref" : "EC2InstanceSecurityGroup"}, { "Fn::FindInMap" : [ "VPCSecurityGroup", { "Ref" : "AWS::Region" }, { "Ref" : "Account" }  ] } ],
+        "KeyName"        : { "Fn::FindInMap" : [ "SshKey2Region", { "Ref" : "AWS::Region" }, { "Ref" : "Account" } ] },
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+          "yum update -y aws-cfn-bootstrap\n",
+
+          "# Helper function\n",
+          "function error_exit\n",
+          "{\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "# Wait for the EBS volume to show up\n",
+          "while [ ! -e /dev/sdh ]; do echo Waiting for EBS volume to attach; sleep 5; done\n",
+
+          "# Format the EBS volume and mount it\n",
+          "mkdir /data\n",
+          "/sbin/mkfs -t ext3 /dev/sdh1\n",
+          "mount /dev/sdh1 /data\n",
+
+          "# Install the server application\n",
+          "/opt/aws/bin/cfn-init -c install -s ", { "Ref" : "AWS::StackId" }, " -r EC2Instance ",
+          "         --region ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+   
+          "# If all is well so signal success\n",
+          "/opt/aws/bin/cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandle" }, "'\n"
+        ]]}},
+        "Tags" : [ { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" }, "PropagateAtLaunch" : "true" },
+                   { "Key" : "LaunchedBy", "Value" : { "Ref" : "LaunchedBy" }, "PropagateAtLaunch" : "true" },
+			       { "Key" : "service", "Value" : { "Ref" : "Service" }, "PropagateAtLaunch" : "true" },
+			       { "Key" : "environment", "Value" : {"Ref" : "Environment"}, "PropagateAtLaunch" : "true" },
+			       { "Key" : "component", "Value" : {"Ref" : "Component"}, "PropagateAtLaunch" : "true" }
+                 ]
+      }
+    },
+    
+    "EC2InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access and HTTP access on the inbound port",
+        "VpcId" : { "Fn::FindInMap" : [ "VPCIds", { "Ref" : "AWS::Region" }, { "Ref" : "Account" }  ] },
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : { "Ref" : "ServerPort"}, "ToPort" : { "Ref" : "ServerPort"}, "CidrIp" : { "Ref" : "ServiceIngressLocation"} },
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "10.0.0.0/8"}
+        ],
+        "SecurityGroupEgress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "0", "ToPort" : "65535", "DestinationSecurityGroupId" : { "Fn::FindInMap" : [ "VPCSecurityGroup", { "Ref" : "AWS::Region" }, { "Ref" : "Account" }  ] }}
+        ],
+        "Tags" : [ 
+          { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } },
+          { "Key" : "LaunchedBy", "Value" : { "Ref" : "LaunchedBy" } },
+          { "Key" : "service", "Value" : {"Ref" : "Service" } },
+          { "Key" : "environment", "Value" : {"Ref" : "Environment" } },
+		  { "Key" : "component", "Value" : {"Ref" : "Component"} }
+        ]
+      }      
+    },
+
+    "DataVolume" : {
+      "Type" : "AWS::EC2::Volume",
+      "Properties" : {
+        "Size" : { "Ref" : "VolumeSize" },
+        "AvailabilityZone" : { "Fn::GetAtt" : [ "EC2Instance", "AvailabilityZone" ]},
+        "Tags" : [ 
+          { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } },
+          { "Key" : "LaunchedBy", "Value" : { "Ref" : "LaunchedBy" } },
+          { "Key" : "service", "Value" : {"Ref" : "Service" } },
+          { "Key" : "environment", "Value" : {"Ref" : "Environment" } },
+		  { "Key" : "component", "Value" : {"Ref" : "Component"} }
+        ]
+      }
+    },
+
+    "MountPoint" : {
+      "Type" : "AWS::EC2::VolumeAttachment",
+      "Properties" : {
+        "InstanceId" : { "Ref" : "EC2Instance" },
+        "VolumeId"  : { "Ref" : "DataVolume" },
+        "Device" : "/dev/sdh"
+      }
+    },
+
+    "WaitHandle" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle"
+    },
+
+    "WaitCondition" : {
+      "Metadata" : {
+        "Comment1" : "Note that the WaitCondition is dependent on the volume mount point allowing the volume to be created and attached to the EC2 instance",
+        "Comment2" : "The instance bootstrap script waits for the volume to be attached to the instance prior to installing Gollum and signalling completion"
+      },
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "DependsOn" : "MountPoint",
+      "Properties" : {
+        "Handle" : {"Ref" : "WaitHandle"},
+        "Timeout" : "300"
+      }
+    }    
+  },
+  
+  "Outputs" : {
+    "Service" : {
+      "Value" : { "Ref" : "Service" },
+      "Description" : "Service name"
+    }, 
+    "Component" : {
+      "Value" : { "Ref" : "Component" },
+      "Description" : "Component name"
+    },
+    "LaunchedBy" : {
+      "Value"       : { "Ref" : "LaunchedBy" },
+      "Description" : "Name of engineer who deployed this stack"
+    },
+    "ServerPort" : {
+      "Value" : { "Ref" : "ServerPort" },
+      "Description" : "Port service is listening on"
+    },
+    "SSHCommand" : {
+      "Value" : {"Fn::Join" : ["", ["ssh -i ", { "Fn::FindInMap" : [ "SshKey2Region", { "Ref" : "AWS::Region" }, { "Ref" : "Account" } ] }, " ec2-user@", { "Fn::GetAtt" : [ "EC2Instance", "PrivateIp" ]} ] ] },
+      "Description" : "SSH command"
+    }, 
+    "InstanceId" : {
+      "Value" : { "Ref" : "EC2Instance" },
+      "Description" : "Instance ID"
+    }
+  }
+}

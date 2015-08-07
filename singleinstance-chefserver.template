@@ -1,0 +1,614 @@
+
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  
+  "Description" : "AWS CloudFormation Template Single_Instance: This template launches a single EC2 instance.",
+  
+  "Parameters" : {
+ 
+    "LaunchedBy" : {
+      "Description" : "Engineer who launched this stack.",
+      "Type" : "String",
+      "AllowedPattern" : "[a-zA-Z]*_[a-zA-Z]*",
+      "ConstraintDescription" : "must be a valid HTC Operations Team engineer.",
+      "Default" : "Facundo_Nishiwaki"
+    },
+
+    "Service" : {
+        "Description" : "HTCCS Service name.",
+        "Type" : "String",
+        "Default" : "noc",
+        "AllowedValues" : [ "noc", "ec2tools", "shoebox" ]
+    }, 
+    
+    "Component" : {
+        "Description" : "Component name for the service.",
+        "Type" : "String",
+        "Default" : "jira"
+    },
+    "Hostname" : {
+        "Description" : "Hostname for the service.",
+        "Type" : "String",
+        "Default" : "jimrafe"
+    },
+    "Environment" : {
+        "Description" : "Environment name, e.g. prod, stage, etc.",
+        "Type" : "String",
+        "AllowedValues" : [ "prod", "stage", "dog", "perf", "ft", "ci", "proto", "demo", "lab", "dv", "sb1", "sb2", "sb3" ],
+        "Default" : "dv"
+    },
+    "VolumeSize" : {
+      "Description" : "EC2 instance type",
+      "Type" : "Number",
+      "Default" : "100",
+      "MinValue" : "5",
+      "MaxValue" : "1024",
+      "ConstraintDescription" : "must be between 5 and 1024 Gb."
+    },
+    "InstanceType" : {
+      "Description" : "EC2 instance type",
+      "Type" : "String",
+      "Default" : "m4.large",
+      "AllowedValues" : [ "t2.micro","t2.medium","m4.medium","m4.large","m4.xlarge","m4.2xlarge","c1.medium","c1.xlarge","c3.large","c3.xlarge","c3.2xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+   
+    "ChefRole" : {
+      "Description" : "Name of Chef Role",
+      "Type" : "String",
+      "MinLength" : "3",
+      "MaxLength" : "50",
+      "AllowedPattern" : "[-_.a-zA-Z0-9]*",
+      "Default" : "NOC-JIRA"
+    },
+    
+    "SubnetType" : {
+      "Description" : "Private or Public Subnet to place EC2 instances",
+      "Type" : "String",
+      "MinLength" : "3",
+      "MaxLength" : "50",
+      "AllowedValues" : [ "Private", "Public" ],
+      "Default" : "Private",
+      "ConstraintDescription" : "Must be 'Private' or 'Public'"
+    },
+    "NotificationEmail": {
+        "Description" : "Notification E-mail Address for the Chef server.",
+        "Type" : "String",
+        "Default" : "facundo_nishiwaki@htc.com"
+    }
+ 
+  },
+  
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t2.micro"    : { "Arch" : "64" },
+      "t2.medium"    : { "Arch" : "64" },
+      "m4.medium"   : { "Arch" : "64" },
+      "m4.large"    : { "Arch" : "64" },
+      "m4.xlarge"   : { "Arch" : "64" },
+      "m4.2xlarge"  : { "Arch" : "64" },
+      "c1.medium"   : { "Arch" : "64" },
+      "c1.xlarge"   : { "Arch" : "64" },
+      "c3.large"    : { "Arch" : "64" },
+      "c3.xlarge"   : { "Arch" : "64" },
+      "c3.2xlarge"  : { "Arch" : "64" }, 
+      "cc1.4xlarge" : { "Arch" : "64HVM" },
+      "cc2.8xlarge" : { "Arch" : "64HVM" },
+      "cg1.4xlarge" : { "Arch" : "64HVM" }
+    },
+
+    "AWSRegionArch2AmazonLinuxAMI" : {
+      "us-east-1"      : { "32" : "ami-d7a18dbe", "64" : "ami-bba18dd2", "64HVM" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "32" : "ami-def297ee", "64" : "ami-ccf297fc", "64HVM" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "32" : "ami-923909d7", "64" : "ami-a43909e1", "64HVM" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "32" : "ami-6a56b81d", "64" : "ami-5256b825", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "32" : "ami-b6baeee4", "64" : "ami-b4baeee6", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "32" : "ami-65a8375f", "64" : "ami-5ba83761", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "32" : "ami-0b13700a", "64" : "ami-0d13700c", "64HVM" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "32" : "ami-bf9130a2", "64" : "ami-c99130d4", "64HVM" : "NOT_YET_SUPPORTED" }
+    },
+    "AWSRegionArch2CentOS65AMI" : {
+      "us-east-1"      : { "32" : "NOT_YET_SUPPORTED", "64" : "NOT_YET_SUPPORTED", "64HVM" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "32" : "NOT_YET_SUPPORTED", "64" : "ami-997e3da9", "64HVM" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "32" : "NOT_YET_SUPPORTED", "64" : "ami-adb8afe8", "64HVM" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "32" : "NOT_YET_SUPPORTED", "64" : "ami-50c67327", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "32" : "NOT_YET_SUPPORTED", "64" : "NOT_YET_SUPPORTED", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "32" : "NOT_YET_SUPPORTED", "64" : "NOT_YET_SUPPORTED", "64HVM" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "32" : "NOT_YET_SUPPORTED", "64" : "ami-e9efd1e8",      "64HVM" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "32" : "NOT_YET_SUPPORTED", "64" : "NOT_YET_SUPPORTED", "64HVM" : "NOT_YET_SUPPORTED" }
+    },
+
+    "AWSRegion2PublicSubnetId" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED",   "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED"   },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED"   },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED"   },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "AWSRegion2PublicZone" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "a",                 "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "a"                 },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "a",                 "267823749944" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "a",                 "267823749944" : "a"                 },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "a"                 },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "AWSRegion2PrivateSubnetId" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED",   "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED"   },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED"   },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED"   },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" }
+    },
+    
+     "AWSRegion2PrivateZone" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "a",                 "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "a" },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "a",                 "267823749944" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "a",                 "267823749944" : "a" },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "c",                 "267823749944" : "a" },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "SshKey2Region" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED",     "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",    "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED",     "800801915507" : "NOT_YET_SUPPORTED",      "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",                 "267823749944" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",   "267823749944" : "NOT_YET_SUPPORTED" }
+    },
+    "HTTPSecurityGroup" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED" }    
+    },
+    
+    "SSHSecurityGroup" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"      : { "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1" : { "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "Colocate2Environment" : {
+      "us-west-1"     : { "dv" : "NOT_YET_SUPPORTED", "perf" : "NOT_YET_SUPPORTED", "stage" : "NOT_YET_SUPPORTED" },
+      "us-west-2"     : { "dv" : "NOT_YET_SUPPORTED", "stage" : "NOT_YET_SUPPORTED" },
+      "eu-west-1"     : { "dv" : "NOT_YET_SUPPORTED", "stage" : "NOT_YET_SUPPORTED" },
+      "ap-northeast-1": { "dv" : "NOT_YET_SUPPORTED", "stage" : "NOT_YET_SUPPORTED" }
+    },
+    
+    "DNSSuffix" : {
+      "us-west-1"     : { "dv" : "cs-htc.net", "perf" : "NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
+      "us-west-2"     : { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
+      "eu-west-1"     : { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
+      "ap-northeast-1": { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" }
+    },
+    "AWSRegion2HostedZoneName" : {
+      "us-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED",  "267823749944" : "NOT_YET_SUPPORTED"    },
+      "us-west-2"      : { "218139400964" : "NOT_YET_SUPPORTED", "800801915507" : "NOT_YET_SUPPORTED",  "267823749944" : "NOT_YET_SUPPORTED"      },
+      "us-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED"    },
+      "eu-west-1"      : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED" },
+      "ap-southeast-1" : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED",  "267823749944" : "NOT_YET_SUPPORTED"    },
+      "ap-southeast-2" : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED",  "267823749944" : "NOT_YET_SUPPORTED"    },
+      "ap-northeast-1" : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED", "267823749944" : "NOT_YET_SUPPORTED"       },
+      "sa-east-1"      : { "218139400964" : "NOT_YET_SUPPORTED",  "800801915507" : "NOT_YET_SUPPORTED",  "267823749944" : "NOT_YET_SUPPORTED"    }
+    },
+    "Values2Environment" : {
+      "dv" : {
+        "yumrepo"           : ,
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefserverurl"     : ""
+      },
+      "perf" : {
+        "yumrepo"           : ,
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefserverurl"     : ""
+      },
+      "stage" : {
+        "yumrepo"           : ,
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefserverurl"     : ""
+      },
+      "prd" : {    
+        "yumrepo"           : "",
+        "chefvalidationkey" : "NOT_YET_SUPPORTED",
+        "chefserverurl"     : ""
+      }
+    }
+  },
+
+  "Conditions" : {
+    "PublicSubnet" : { "Fn::Equals" : [ { "Ref" : "SubnetType" }, "Public" ] },
+    "UseRoute53"   : { "Fn::Equals" : [ { "Ref" : "AWS::AccountId" }, "800801915507" ] }
+  },
+  
+  "Resources" : {     
+
+    "DNSRecordSet" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Condition": "UseRoute53",
+      "Properties" : {
+        "Comment" : { "Fn::Join" : ["", [ "DNS Record for EC2 Node: ", { "Ref" : "AWS::StackName" } ] ] },
+        "HostedZoneName" : {
+          "Fn::Join" : [ ".", [ {
+            "Fn::FindInMap" : ["AWSRegion2HostedZoneName", {
+              "Ref" : "AWS::Region" }, {
+              "Ref" : "AWS::AccountId" } ]
+            }, ""
+          ] ] 
+        },
+        "Type" : "A",
+        "TTL" : "900",
+        "Name" : {
+          "Fn::Join" : [ ".", [ { "Ref" : "Hostname" }, {
+            "Fn::FindInMap" : ["AWSRegion2HostedZoneName", {
+              "Ref" : "AWS::Region" }, {
+              "Ref" : "AWS::AccountId" } ]
+            }, ""
+          ] ] 
+        },
+        "ResourceRecords" : [
+          { "Fn::GetAtt" : [ "EC2Instance", "PrivateIp" ] }
+        ]
+      }
+    },
+    
+    "InstanceRole" : {
+      "Type" : "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument" : {
+          "Version" : "2012-10-17",
+          "Statement" : [ {
+            "Effect" : "Allow",
+            "Principal" : {
+              "Service" : [ "ec2.amazonaws.com" ]
+            },
+            "Action" : [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path" : "/"
+      }
+    },
+    
+    "InstanceRolePolicies" : {
+      "Type" : "AWS::IAM::Policy",
+      "Properties" : {
+        "PolicyName" : "esdicovery",
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Action": "ec2:Describe*",
+            "Resource": "*"
+          } ]
+        },
+        "Roles": [ { "Ref": "InstanceRole" } ]
+      }
+    },
+       
+    "InstanceProfile" : {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ { "Ref": "InstanceRole" } ]
+      }
+    },
+    
+   "EC2Instance": {  
+      "Type": "AWS::EC2::Instance",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "configSets" : {
+            "install" : [ "base", "hostname", "yumrepo", "chef-server-prepare" ]
+          },
+          "base" : {
+            "packages" : {
+              "yum" : {
+                "gcc"              : [],
+                "make"             : [],
+                "ruby-devel"       : [],
+                "rubygems"         : [],
+                "libxml2-devel"    : [],
+                "libxslt-devel"    : [],
+                "git"              : []
+              },
+
+              "rubygems" : {
+              }
+            }
+          },
+          
+          "chef-server-prepare": {
+            "files": {
+              "/etc/opscode/chef-server.rb": {
+                "content": { "Fn::Join": [ "", [
+                  "node.default['chef-server']['configuration'] = \"notification_email '", { "Ref": "NotificationEmail" }, "'\""
+                  ]
+                  ]
+                }
+              }
+            }, 
+            "commands": {
+              "01-install-chef-solo": {
+                "command": "curl -L https://www.chef.io/chef/install.sh | bash"
+              },
+              "02-create-required-bootstrap-dirs-files": {
+                "command": "mkdir -p /var/chef/cache /var/chef/cookbooks"
+              },
+              "03-pull-down-chef-server-cookbook": {
+                "command": "wget -qO- https://supermarket.chef.io/cookbooks/chef-server/download | tar xvzC /var/chef/cookbooks"
+              },
+              "04-pull down dependency cookbooks": {
+                "command": { "Fn::Join": [ "\n", [
+                  "for dep in chef-ingredient yum-chef yum apt-chef apt packagecloud",
+                  "   do wget -qO- https://supermarket.chef.io/cookbooks/${dep}/download | tar xvzC /var/chef/cookbooks",
+                  "done"
+                  ]
+                  ]
+                }
+              },
+              "05-GO-GO-GO":{
+                "command": "chef-solo -o 'recipe[chef-server::default]'"
+              }
+            }
+          }, 
+          "hostname" : {
+            "commands" : {
+              "01-get-instance-id" : {
+                "command" : "INSTANCE_ID=$(curl 169.254.169.254/latest/meta-data/instance-id)"
+              },
+              "02-get-private-ip" : {
+                "command" : "PRIVATE_IP=$(curl 169.254.169.254/latest/meta-data/local-ipv4)"
+              },
+              "03-set-dns-prefix" : {
+                "command" : { "Fn::Join" : [ "", [ "DNS_PREFIX=", { "Ref": "Service" }, "-", { "Ref" : "Environment" }  ] ]
+                }
+              },
+              "04-define-node-name" : {
+                "command" : { 
+                  "Fn::Join" : [ "", [ "NODE_NAME=", "$DNS_PREFIX", "-", "$INSTANCE_ID.",
+                    {
+                      "Fn::FindInMap" : [ "Colocate2Environment", { "Ref" : "AWS::Region" }, { "Ref" : "Environment" }  ]
+                    },
+                    ".",
+                    {
+                      "Fn::FindInMap": [ "DNSSuffix", { "Ref" : "AWS::Region" }, { "Ref" : "Environment" } ] 
+                    }
+                  ] ]
+                }
+              },
+              "05-set-node-name" : {
+                "command" : "hostname $NODE_NAME\n echo \"$PRIVATE_IP $NODE_NAME\" `echo $NODE_NAME | cut -d '.' -f 1` >> /etc/hosts\necho \"$NODE_NAME\" > /etc/hostname"
+              }
+            }
+          }, 
+          
+          "chefrole-prepare" : {
+            "packages" : {
+              "rpm" : {
+                "chef" : "https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chef-11.8.2-1.el6.x86_64.rpm"
+              },
+
+              "yum" : {
+                "rubygems"     : []
+              }
+            },
+            "files" : {
+              "/etc/chef/validation.pem" : {
+                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "chefvalidationkey" ]
+                },
+                "mode"   : "00600",
+                "owner"  : "root",
+                "group"  : "root"
+              },
+              "/etc/chef/chef.json" : {
+                "content" : {
+                  "sudo" : {
+                    "passwordless": true,
+                    "groups": [ "ops", "wheel" ]
+                  },
+                  "run_list" : [ { "Fn::Join" : [ "", [ "role[", { "Ref" : "ChefRole" }, "]" ]  ] } ]
+                }
+              },
+              "/etc/chef/client.rb" : {
+                "content" : { "Fn::Join" : ["", [
+                  "log_level          :info\n",
+                  "log_location       STDOUT\n",
+                  "node_name          \"", { "Fn::Join" : [ ".", [ { "Ref" : "Hostname" },  
+                    { "Fn::FindInMap" : ["AWSRegion2HostedZoneName", { "Ref" : "AWS::Region" }, { "Ref" : "AWS::AccountId" } ] } 
+                    ] ] }, "\"\n",
+                  "chef_server_url  \"", { "Fn::Join" : [ "", 
+                    [ { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "chefserverurl" ] }, "\"\n"
+                      ] ] },
+                 "validation_client_name      \"chef-validator\"\n",
+                 "file_cache_path         \"/var/cache/chef\"\n",
+                 "file_backup_path        \"/var/lib/chef\"\n"
+                  ] ]
+                },
+                "mode"   : "00600",
+                "owner"  : "root",
+                "group"  : "root"
+              }
+            }
+          }, 
+                    
+          "yumrepo" : {
+            "files" : {
+              "/etc/yum.repos.d/htc_rhel5-x86_64.repo" : {
+                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "yumrepo" ]
+                },
+                "mode"   : "00644",
+                "owner"  : "root",
+                "group"  : "root"
+              }
+            }
+          }, 
+
+          "chefclient-run" : {
+            "commands" : {
+              "01-run-chef-client" : {
+                "command" : "chef-client -j /etc/chef/chef.json"
+              }
+            }
+          },
+          "dynamodb-to-csv-pre" : {
+            "packages": {
+              "yum" : {
+                "npm" :[],
+                "unzip" : []
+              }
+            },
+            "commands" : {
+              "01-download-zip" : {
+                "command" : "cd /home/ec2-user/; wget https://github.com/edasque/DynamoDBtoCSV/archive/master.zip"
+              },
+              "02-unzip" : {
+                "command" : "cd /home/ec2-user/; unzip master.zip"
+              },
+              "03-install-npm-commander" : {
+                "command" : "npm install"
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "SubnetId" : { 
+          "Fn::If" : [
+            "PublicSubnet", 
+              { "Fn::FindInMap" : [ "AWSRegion2PublicSubnetId",  
+                                  { "Ref" : "AWS::Region" },
+                                  { "Ref" : "AWS::AccountId" }
+                               ]
+              },
+              { "Fn::FindInMap" : [ "AWSRegion2PrivateSubnetId",  
+                                  { "Ref" : "AWS::Region" },
+                                  { "Ref" : "AWS::AccountId" }
+                               ]
+              }
+          ]
+        },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2CentOS65AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "IamInstanceProfile": { "Ref": "InstanceProfile" },
+        "SecurityGroupIds" : [ { "Fn::FindInMap" : [ "SSHSecurityGroup", { "Ref" : "AWS::Region" }, { "Ref" : "AWS::AccountId" }  ] },
+                               { "Fn::FindInMap" : [ "HTTPSecurityGroup", { "Ref" : "AWS::Region" }, { "Ref" : "AWS::AccountId" }  ] } ],
+        "KeyName"        : { "Fn::FindInMap" : [ "SshKey2Region", { "Ref" : "AWS::Region" }, { "Ref" : "AWS::AccountId" } ] },
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+
+          "rm -f /opt/aws/bin/cfn-init\n",
+          "if [ ! -f /opt/aws/bin/cfn-init ]\n",
+          "then\n",
+          "    yum install -y wget python-setuptools python\n",
+          "    wget http://mirror-fpt-telecom.fpt.net/fedora/epel/6/i386/epel-release-6-8.noarch.rpm\n",
+          "    rpm -ivh epel-release-*.noarch.rpm\n",
+          "    easy_install https://pypi.python.org/packages/source/l/lockfile/lockfile-0.10.2.tar.gz#md5=1aa6175a6d57f082cd12e7ac6102ab15\n",
+          "    easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+          "    mkdir -p /opt/aws/bin/; ln -s /usr/bin/cfn-init /opt/aws/bin/cfn-init\n", 
+          "else\n",
+          "    yum install -y yum-utils\n",
+          "    yum-config-manager --enable epel\n",
+          "    yum update -y aws-cfn-bootstrap\n",
+          "fi\n",
+
+          "# Wait for the EBS volume to show up\n",
+          "while [ ! -e /dev/sdh ]; do echo Waiting for EBS volume to attach; sleep 5; done\n",
+
+          "# Format the EBS volume and mount it\n",
+          "mkdir /opt/chef\n",
+          "/sbin/mkfs -t ext3 /dev/sdh1\n",
+          "mount /dev/sdh1 /opt/chef\n",
+
+          "# Install HA Server\n",
+          "/opt/aws/bin/cfn-init -c install -s ", { "Ref" : "AWS::StackName" }, " -r EC2Instance ",
+		  "    --region ", { "Ref" : "AWS::Region" }, " | tee /var/log/cfn-init.log \n"
+
+        ]]}},
+        "Tags" : [ { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } },
+                   { "Key" : "LaunchedBy", "Value" : { "Ref" : "LaunchedBy" } },
+			       { "Key" : "service", "Value" : { "Ref" : "Service" } },
+			       { "Key" : "environment", "Value" : {"Ref" : "Environment"} },
+			       { "Key" : "component", "Value" : {"Ref" : "Component"} }
+                 ]
+      }
+    },
+
+    "DataVolume" : {
+      "Type" : "AWS::EC2::Volume",
+      "Properties" : {
+        "Size" : { "Ref" : "VolumeSize" },
+        "AvailabilityZone" : { "Fn::GetAtt" : [ "EC2Instance", "AvailabilityZone" ]},
+        "Tags" : [ 
+          { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } },
+          { "Key" : "LaunchedBy", "Value" : { "Ref" : "LaunchedBy" } },
+          { "Key" : "service", "Value" : {"Ref" : "Service" } },
+          { "Key" : "environment", "Value" : {"Ref" : "Environment" } },
+		  { "Key" : "component", "Value" : {"Ref" : "Component"} }
+        ]
+      }
+    },
+
+    "MountPoint" : {
+      "Type" : "AWS::EC2::VolumeAttachment",
+      "Properties" : {
+        "InstanceId" : { "Ref" : "EC2Instance" },
+        "VolumeId"  : { "Ref" : "DataVolume" },
+        "Device" : "/dev/sdh"
+      }
+    }
+  },
+  
+  "Outputs" : {
+    "Service" : {
+      "Value" : { "Ref" : "Service" },
+      "Description" : "Service name"
+    }, 
+    "Component" : {
+      "Value" : { "Ref" : "Component" },
+      "Description" : "Component name"
+    },
+    "LaunchedBy" : {
+      "Value"       : { "Ref" : "LaunchedBy" },
+      "Description" : "Name of engineer who deployed this stack"
+    },
+    "SSHCommand" : {
+      "Value" : {"Fn::Join" : ["", ["ssh -i ", { "Fn::FindInMap" : [ "SshKey2Region", { "Ref" : "AWS::Region" }, { "Ref" : "AWS::AccountId" } ] }, " root@", { "Fn::GetAtt" : [ "EC2Instance", "PrivateIp" ]} ] ] },
+      "Description" : "SSH command"
+    }, 
+    "InstanceId" : {
+      "Value" : { "Ref" : "EC2Instance" },
+      "Description" : "Instance ID"
+    },
+    "DNSRecord" : {
+      "Condition" : "UseRoute53", 
+      "Value" : { "Ref" : "DNSRecordSet" },
+      "Description" : "Route53 FQDN RecordSet of instance"
+    }
+  }
+}
