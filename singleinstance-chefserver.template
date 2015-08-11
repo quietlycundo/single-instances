@@ -10,15 +10,15 @@
       "Description" : "Engineer who launched this stack.",
       "Type" : "String",
       "AllowedPattern" : "[a-zA-Z]*_[a-zA-Z]*",
-      "ConstraintDescription" : "must be a valid HTC Operations Team engineer.",
-      "Default" : "Facundo_Nishiwaki"
+      "ConstraintDescription" : "must be a valid Operations Team engineer.",
+      "Default" : "Operations_Engineer"
     },
 
     "Service" : {
-        "Description" : "HTCCS Service name.",
+        "Description" : "Service name.",
         "Type" : "String",
         "Default" : "noc",
-        "AllowedValues" : [ "noc", "ec2tools", "shoebox" ]
+        "AllowedValues" : [ "noc", "ec2tools" ]
     }, 
     
     "Component" : {
@@ -58,8 +58,7 @@
       "Type" : "String",
       "MinLength" : "3",
       "MaxLength" : "50",
-      "AllowedPattern" : "[-_.a-zA-Z0-9]*",
-      "Default" : "NOC-JIRA"
+      "AllowedPattern" : "[-_.a-zA-Z0-9]*"
     },
     
     "SubnetType" : {
@@ -74,7 +73,7 @@
     "NotificationEmail": {
         "Description" : "Notification E-mail Address for the Chef server.",
         "Type" : "String",
-        "Default" : "facundo_nishiwaki@htc.com"
+        "Default" : "someone@somewhere.com"
     }
  
   },
@@ -202,7 +201,7 @@
     },
     
     "DNSSuffix" : {
-      "us-west-1"     : { "dv" : "cs-htc.net", "perf" : "NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
+      "us-west-1"     : { "dv" : "NOT_YET_SUPPORTED", "perf" : "NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
       "us-west-2"     : { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
       "eu-west-1"     : { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" },
       "ap-northeast-1": { "dv" : NOT_YET_SUPPORTED", "stage" : NOT_YET_SUPPORTED" }
@@ -458,13 +457,6 @@
                     
           "yumrepo" : {
             "files" : {
-              "/etc/yum.repos.d/htc_rhel5-x86_64.repo" : {
-                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "yumrepo" ]
-                },
-                "mode"   : "00644",
-                "owner"  : "root",
-                "group"  : "root"
-              }
             }
           }, 
 
