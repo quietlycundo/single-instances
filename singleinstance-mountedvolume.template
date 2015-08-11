@@ -9,9 +9,8 @@
     "LaunchedBy" : {
       "Description" : "Engineer who launched this stack.",
       "Type" : "String",
-      "AllowedValues" : [ "Patrick Moylan", "Steve LeCompte", "Chris O'Malley", "Frank Chen", "Jonathan Huang", "Facundo Nishiwaki", "Sean Hsu" ],
-      "ConstraintDescription" : "must be a valid HTC Operations Team engineer.",
-      "Default" : "Steve LeCompte"
+      "ConstraintDescription" : "must be a valid Operations Team engineer.",
+      "Default" : "Someone"
     },
 
     "Account" : {
@@ -22,7 +21,7 @@
     },
     
     "Service" : {
-        "Description" : "HTCCS Service name.",
+        "Description" : "Service name.",
         "Type" : "String",
         "Default" : "ec2tools"
     }, 
@@ -300,13 +299,6 @@
                     
           "yumrepo" : {
             "files" : {
-              "/etc/yum.repos.d/htc_rhel5-x86_64.repo" : {
-                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "yumrepo" ]
-                },
-                "mode"   : "00644",
-                "owner"  : "root",
-                "group"  : "root"
-              }
             }
           }, 
 
