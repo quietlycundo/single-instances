@@ -9,9 +9,9 @@
     "LaunchedBy" : {
       "Description" : "Engineer who launched this stack.",
       "Type" : "String",
-      "AllowedPattern" : "[a-zA-Z]*_[a-zA-Z]*@htc.com",
-      "ConstraintDescription" : "must be a valid HTC Operations Team engineer.",
-      "Default" : "Brian_Storoe@htc.com"
+      "AllowedPattern" : "[a-zA-Z]*_[a-zA-Z]",
+      "ConstraintDescription" : "must be a valid Operations Team engineer.",
+      "Default" : "Operations_Engineer"
     },
 
     "Account" : {
@@ -22,10 +22,10 @@
     },
     
     "Service" : {
-        "Description" : "HTCCS Service name.",
+        "Description" : "Service name.",
         "Type" : "String",
-        "Default" : "shoebox",
-        "AllowedValues" : [ "ec2tools", "shoebox" ]
+        "Default" : "ec2tools",
+        "AllowedValues" : [ "ec2tools" ]
     }, 
     
     "Component" : {
@@ -355,13 +355,6 @@
                     
           "yumrepo" : {
             "files" : {
-              "/etc/yum.repos.d/htc_rhel5-x86_64.repo" : {
-                "source" : { "Fn::FindInMap" : [ "Values2Environment", { "Ref" : "Environment" }, "yumrepo" ]
-                },
-                "mode"   : "00644",
-                "owner"  : "root",
-                "group"  : "root"
-              }
             }
           }, 
 
